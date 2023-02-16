@@ -10,12 +10,20 @@ contract ERC20 is Context, IERC20 {
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
     uint256 private _totalSupply;
+    uint256 private constant _CAP = 15000000000000000000000000;
     string private constant _NAME = "CANNABIO";
     string private constant _SYMBOL = "CNB";
+    // address private owner;
 
     constructor(uint256 initialSupply) {
+        require(_CAP > 0, "ERC20Capped: cap is 0");
         _mint(_msgSender(), initialSupply);
     }
+
+    // modifier onlyOwner {
+    //     owner = _msgSender();
+    //     _;
+    // }
 
     function name() public view virtual override returns (string memory) {
         return _NAME;
@@ -31,6 +39,10 @@ contract ERC20 is Context, IERC20 {
 
     function totalSupply() public view virtual override returns (uint256) {
         return _totalSupply;
+    }
+
+    function cap() public view virtual returns (uint256) {
+        return _CAP;
     }
 
     function balanceOf(address account) public view virtual override returns (uint256) {
@@ -97,6 +109,7 @@ contract ERC20 is Context, IERC20 {
 
     function _mint(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: mint to the zero address");
+        require(totalSupply() + amount <= cap(), "ERC20Capped: cap exceeded");
 
         _beforeTokenTransfer(address(0), account, amount);
 
