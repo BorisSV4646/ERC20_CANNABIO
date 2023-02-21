@@ -2,38 +2,46 @@
 
 pragma solidity ^0.8.0;
 
-import "./Parts/IERC20.sol";
-import "./Parts/Context.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
 
-
+/**
+ * TODO: add vote function in token contract from Votes.sol
+ * TODO: add burn token and comission
+ */   
 contract ERC20 is Context, IERC20 {
+    address private _rewardPool;
+    address private _creater;
     mapping(address => uint256) private _balances;
     mapping(address => mapping(address => uint256)) private _allowances;
     uint256 private _totalSupply;
-    uint256 private constant _CAP = 15000000000000000000000000;
+    uint256 private _CAP = 1_500_000e18;
+    uint256 private _feeBurn = 5;
+    uint256 private _feeReward = 20;
     string private constant _NAME = "CANNABIO";
     string private constant _SYMBOL = "CNB";
-    // address private owner;
 
-    constructor(uint256 initialSupply) {
+    constructor(uint256 initialSupply, address rewardPool_) {
         require(_CAP > 0, "ERC20Capped: cap is 0");
-        _mint(_msgSender(), initialSupply);
+        _mint(_msgSender(), initialSupply * (10 ** decimals()));
+        _creater = msg.sender;
+        _rewardPool = rewardPool_;
     }
 
-    // modifier onlyOwner {
-    //     owner = _msgSender();
-    //     _;
-    // }
+    modifier onlyCreater {
+        _creater = _msgSender();
+        _;
+    }
 
-    function name() public view virtual override returns (string memory) {
+    function name() public view virtual returns (string memory) {
         return _NAME;
     }
 
-    function symbol() public view virtual override returns (string memory) {
+    function symbol() public view virtual returns (string memory) {
         return _SYMBOL;
     }
 
-    function decimals() public view virtual override returns (uint8) {
+    function decimals() public view virtual returns (uint8) {
         return 18;
     }
 
@@ -93,60 +101,50 @@ contract ERC20 is Context, IERC20 {
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
 
-        _beforeTokenTransfer(from, to, amount);
+        uint feeBurn = _calcFeeburn(amount);
+        uint feeReward = _calcFeereward(amount);
+
+        // _beforeTokenTransfer(amount);
 
         uint256 fromBalance = _balances[from];
         require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+        require(amount + feeBurn + (feeReward/2)<= _balances[from], "ERC20: transfer amount exceeds balance");
+        _burn(from, feeBurn);
         unchecked {
-            _balances[from] -= amount;
+            _balances[from] -= amount - (feeReward/2);
             _balances[to] += amount;
+            _balances[_rewardPool] += feeReward/2;
         }
 
-        emit Transfer(from, to, amount);
+        emit Transfer(from, to, amount, feeBurn, feeReward);
 
         _afterTokenTransfer(from, to, amount);
     }
 
-    function _mint(address account, uint256 amount) internal virtual {
+    function _mint(address account, uint256 amount) internal virtual onlyCreater {
         require(account != address(0), "ERC20: mint to the zero address");
         require(totalSupply() + amount <= cap(), "ERC20Capped: cap exceeded");
-
-        _beforeTokenTransfer(address(0), account, amount);
 
         _totalSupply += amount;
         unchecked {
             _balances[account] += amount;
         }
-        emit Transfer(address(0), account, amount);
+        emit Transfer(address(0), account, amount, 0, 0);
 
         _afterTokenTransfer(address(0), account, amount);
     }
 
-    /**
-     * @dev Destroys `amount` tokens from `account`, reducing the
-     * total supply.
-     *
-     * Emits a {Transfer} event with `to` set to the zero address.
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
-     * - `account` must have at least `amount` tokens.
-     */
     function _burn(address account, uint256 amount) internal virtual {
         require(account != address(0), "ERC20: burn from the zero address");
-
-        _beforeTokenTransfer(account, address(0), amount);
 
         uint256 accountBalance = _balances[account];
         require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
         unchecked {
             _balances[account] = accountBalance - amount;
-            // Overflow not possible: amount <= accountBalance <= totalSupply.
-            _totalSupply -= amount;
+            _CAP -= amount;
         }
 
-        emit Transfer(account, address(0), amount);
+        emit Transfer(account, address(0), amount, 0, 0);
 
         _afterTokenTransfer(account, address(0), amount);
     }
@@ -170,35 +168,17 @@ contract ERC20 is Context, IERC20 {
         }
     }
 
-    /**
-     * @dev Hook that is called before any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * will be transferred to `to`.
-     * - when `from` is zero, `amount` tokens will be minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal virtual {}
+    function _calcFeeburn(uint256 amount) internal view returns(uint feeBurn) {
+        return (amount * _feeBurn / 1000);
+    }
 
-    /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * has been transferred to `to`.
-     * - when `from` is zero, `amount` tokens have been minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens have been burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
+    function _calcFeereward(uint256 amount) internal view returns(uint feeBurn) {
+        return (amount * _feeReward / 1000);
+    }
+
+//     function _beforeTokenTransfer(uint256 amount) internal virtual returns(uint feeBurn, uint feeReward) {
+//         return ((amount * _feeBurn / 1000), (amount * _feeReward / 1000));
+//     }
+
     function _afterTokenTransfer(address from, address to, uint256 amount) internal virtual {}
 }
