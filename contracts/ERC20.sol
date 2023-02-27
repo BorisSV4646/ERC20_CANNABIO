@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/utils/Context.sol";
 
 /**
  * TODO: add vote function in token contract from Votes.sol
- * TODO: add burn token and comission
  */   
 contract ERC20 is Context, IERC20 {
     address private _rewardPool;
@@ -121,7 +120,7 @@ contract ERC20 is Context, IERC20 {
         _afterTokenTransfer(from, to, amount);
     }
 
-    function _mint(address account, uint256 amount) internal virtual onlyCreater {
+    function _mint(address account, uint256 amount) public virtual onlyCreater {
         require(account != address(0), "ERC20: mint to the zero address");
         require(totalSupply() + amount <= cap(), "ERC20Capped: cap exceeded");
 

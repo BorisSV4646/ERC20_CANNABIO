@@ -1,5 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
+require("./hardhat_tasks/sample_task");
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
